@@ -57,6 +57,10 @@ After 3 failed attempts on the same issue, the loop moves on and flags it for pl
 
 ## Quick Start
 
+Two workflows are supported:
+
+### Workflow 1: Specs-First (Traditional Ralph)
+
 ```bash
 # Copy files to your project
 cp -r files/* your-project/
@@ -65,12 +69,40 @@ cd your-project
 # Initialize beads
 bd init
 
+# Create specs/*.md files defining requirements
+
 # Run planning (creates issues from specs)
 ./loop.sh plan
 
 # Run building (implements from issue queue)
 ./loop.sh build
 ```
+
+### Workflow 2: Beads-First (No Specs Required)
+
+```bash
+# Copy files to your project
+cp -r files/* your-project/
+cd your-project
+
+# Initialize beads
+bd init
+
+# Create epics and issues directly (e.g., in Claude Code)
+bd create --title="Epic: User Auth" --type=epic --priority=1 \
+  --description="Implement user authentication system"
+bd create --title="Add login endpoint" --type=task --priority=1 \
+  --parent=<epic-id> \
+  --acceptance="- [ ] Login test passes | \`npm test auth\` | exit 0"
+
+# Skip planning, go straight to building
+./loop.sh build
+```
+
+The beads-first workflow is useful when you:
+- Already have a clear mental model of the work
+- Want to define issues interactively in Claude Code
+- Don't need the gap analysis that planning provides
 
 See [QUICKSTART.md](QUICKSTART.md) for the full 5-minute setup guide.
 

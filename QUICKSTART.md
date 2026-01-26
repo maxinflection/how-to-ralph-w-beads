@@ -6,7 +6,9 @@ Get up and running in 5 minutes.
 
 1. **beads** installed: `npm install -g @beads/bd` or `brew install beads`
 2. **claude** CLI installed with API access
-3. A project with specs in `specs/*.md`
+3. Either:
+   - Specs in `specs/*.md` (traditional workflow), OR
+   - Beads epics/issues created directly (beads-first workflow)
 
 ## Setup
 
@@ -78,6 +80,56 @@ Watch the output. The loop will:
 - Exit when `bd ready` is empty (all work done)
 - Skip stuck issues after 3 attempts
 - Push to git after each iteration
+
+## Alternative: Beads-First Workflow (Skip Specs)
+
+If you prefer to create issues directly without `specs/*.md` files:
+
+### 1. Create Epics and Issues Directly
+
+```bash
+# Create an epic
+bd create --title="Epic: User Authentication" --type=epic --priority=1 \
+  --description="
+## Overview
+Implement secure user authentication with JWT tokens.
+
+## Success Criteria
+- Users can register and login
+- Sessions are secure and expire appropriately
+"
+
+# Create child tasks with acceptance criteria
+bd create --title="Implement login endpoint" --type=task --priority=1 \
+  --parent=<epic-id> \
+  --description="POST /api/auth/login endpoint" \
+  --acceptance="
+- [ ] Returns JWT for valid credentials | \`npm test auth.test.ts --grep login\` | exit 0
+- [ ] Returns 401 for invalid password | \`npm test auth.test.ts --grep invalid\` | exit 0
+"
+
+bd create --title="Implement registration" --type=task --priority=1 \
+  --parent=<epic-id> \
+  --acceptance="
+- [ ] Creates user in database | \`npm test auth.test.ts --grep register\` | exit 0
+- [ ] Validates email format | \`npm test auth.test.ts --grep email\` | exit 0
+"
+
+# Wire dependencies if needed
+bd dep add <registration-id> <login-id>  # Login depends on registration
+```
+
+### 2. Skip Planning, Go Straight to Build
+
+```bash
+# Verify issues are ready
+bd ready
+
+# Run build mode directly
+./loop.sh build
+```
+
+The prompts will use your epic descriptions as the source of truth instead of specs.
 
 ## Verify Exit Conditions Work
 
