@@ -146,7 +146,7 @@ Every issue MUST have:
 - Clear dependencies on blocking work
 - Reference to relevant spec or code location
 
-Acceptance criteria format (per docs/ACCEPTANCE_CRITERIA.md):
+Acceptance criteria format (see docs/ACCEPTANCE_CRITERIA.md for full patterns):
 ```
 - [ ] {description} | `{verification_command}` | {expected_outcome}
 ```
