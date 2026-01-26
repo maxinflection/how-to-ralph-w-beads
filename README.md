@@ -148,6 +148,40 @@ docs/
 5. Closes with evidence and commits
 6. Loops until `bd ready` is empty
 
+### Scoped Loops (RALPH_SCOPE)
+
+Run loops scoped to a specific epic, useful for feature branches or worktrees:
+
+```bash
+# Only work on issues within epic htrwb-abc
+RALPH_SCOPE=htrwb-abc ./loop.sh build
+
+# Scoped planning
+RALPH_SCOPE=htrwb-abc ./loop.sh plan 5
+```
+
+When `RALPH_SCOPE` is set:
+- `bd ready` filters to children of that epic
+- Loop exits when scoped work is complete (not global work)
+- Prompts inform the agent of scope restrictions
+- New issues should be created under the scoped epic
+
+**Worktree workflow:**
+```bash
+# Create worktree for feature
+git worktree add ../my-feature feature/my-feature
+cd ../my-feature
+
+# Create epic for this feature
+bd create --title="Epic: My Feature" --type=epic --priority=1
+# Returns: htrwb-xyz
+
+# Run scoped loop
+RALPH_SCOPE=htrwb-xyz ./loop.sh build
+```
+
+This enables parallel development: different worktrees work on different epics simultaneously without interference.
+
 ## Comparison with Original Ralph
 
 | Aspect | Original Ralph | Ralph + Beads |

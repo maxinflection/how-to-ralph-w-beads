@@ -1,8 +1,14 @@
 # PLANNING MODE - Triage Stuck Work + Generate New Issues
 
+<!-- RALPH_SCOPE: ${RALPH_SCOPE} -->
+
 ## Phase 0: Orient
 
-0a. Run `bd ready` and `bd list --status open` to understand current work state.
+**0a. Understand current work state:**
+- If RALPH_SCOPE is set above (non-empty): Run `bd ready --parent=${RALPH_SCOPE}` and `bd list --status open --parent=${RALPH_SCOPE}`
+- Otherwise: Run `bd ready` and `bd list --status open`
+
+This shows current work (within scope if scoped).
 
 0b. **Determine requirements source** (specs are optional):
     - If `specs/*` exists and has files → Study specs as the source of truth
@@ -47,7 +53,9 @@
 
    b. **If blocker can now be modeled as beads work**:
       ```bash
+      # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
       bd create --title="Prerequisite: [what's needed]" --type=task --priority=1 \
+        --parent=<RALPH_SCOPE-if-set> \
         --description="## Context\nRequired to unblock <blocked-id>" \
         --acceptance="- [ ] [Specific deliverable] | \`[command]\` | exit 0"
       bd dep add <blocked-id> <new-prereq-id>
@@ -75,7 +83,10 @@
 
    **For Epics** (large bodies of work with multiple tasks):
    ```bash
+   # If RALPH_SCOPE is set, new epics should be children of that scope
+   # Otherwise, create top-level epics
    bd create --title="Epic: [Topic]" --type=epic --priority=1 \
+     --parent=<RALPH_SCOPE-if-set> \
      --description="
    ## Context
    [Why this work exists]
@@ -91,8 +102,9 @@
 
    **For Tasks** (implementable units of work):
    ```bash
+   # If RALPH_SCOPE is set, use --parent=${RALPH_SCOPE} (or child epic)
    bd create --title="Implement [specific thing]" --type=task --priority=2 \
-     --parent=<epic-id-if-applicable> \
+     --parent=<epic-id-or-RALPH_SCOPE> \
      --description="
    ## Context
    [Why this task exists]

@@ -1,8 +1,14 @@
 # BUILDING MODE - Implement from Beads Queue
 
+<!-- RALPH_SCOPE: ${RALPH_SCOPE} -->
+
 ## Phase 0: Orient
 
-0a. Run `bd ready --json | jq '.[0]'` to get the highest-priority unblocked task.
+**0a. Get ready work:**
+- If RALPH_SCOPE is set above (non-empty): Run `bd ready --parent=${RALPH_SCOPE} --json | jq '.[0]'`
+- Otherwise: Run `bd ready --json | jq '.[0]'`
+
+This gets the highest-priority unblocked task (within scope if scoped).
 0b. Run `bd show <id>` to read full context, acceptance criteria, and dependencies.
 0c. **Study requirements** (specs are optional):
     - If `specs/*` exists → Study specs with up to 25 parallel Sonnet subagents
@@ -70,8 +76,9 @@ This ensures tests exist BEFORE implementation and forces thinking about verific
 
    d. **If it fails requiring substantial work**: Create a blocking issue:
       ```bash
+      # If RALPH_SCOPE is set, use --parent=${RALPH_SCOPE}; otherwise use --parent=<epic-if-applicable>
       bd create --title="Fix: [specific failure]" --type=bug --priority=1 \
-        --parent=<epic-if-applicable> \
+        --parent=<epic-or-RALPH_SCOPE> \
         --description="
       ## Context
       Discovered while validating <current-id>
@@ -97,7 +104,9 @@ This ensures tests exist BEFORE implementation and forces thinking about verific
 
 4. **If you discover issues during implementation**:
    ```bash
+   # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
    bd create --title="Discovered: [issue]" --type=bug --priority=2 \
+     --parent=<RALPH_SCOPE-if-set> \
      --description="Found while working on <current-id>" \
      --acceptance="- [ ] [Specific fix] | \`[command]\` | exit 0"
    ```
@@ -159,7 +168,9 @@ This ensures tests exist BEFORE implementation and forces thinking about verific
 
 999999999. For bugs noticed but unrelated to current work, file them:
            ```bash
+           # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
            bd create --title="Bug: [description]" --type=bug --priority=2 \
+             --parent=<RALPH_SCOPE-if-set> \
              --acceptance="- [ ] [Fix verification] | \`[command]\` | exit 0"
            ```
 

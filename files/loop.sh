@@ -23,6 +23,7 @@ set -euo pipefail
 ATTEMPT_FILE=".ralph-attempts"
 MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-files}"
+RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
 
 # Parse arguments
 if [ "${1:-}" = "plan" ]; then
@@ -64,6 +65,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Mode:   $MODE"
 echo "Prompt: $PROMPT_FILE"
 echo "Branch: $CURRENT_BRANCH"
+[ -n "$RALPH_SCOPE" ] && echo "Scope:  $RALPH_SCOPE (epic-scoped)"
 [ "$MAX_ITERATIONS" -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -73,9 +75,18 @@ if [ ! -f "$PROMPT_FILE" ]; then
     exit 1
 fi
 
+# Build bd ready command with optional scope filter
+get_bd_ready_cmd() {
+    if [ -n "$RALPH_SCOPE" ]; then
+        echo "bd ready --parent=${RALPH_SCOPE} --json"
+    else
+        echo "bd ready --json"
+    fi
+}
+
 # Function to get current ready issue ID
 get_ready_issue() {
-    bd ready --json 2>/dev/null | jq -r '.[0].id // empty'
+    $(get_bd_ready_cmd) 2>/dev/null | jq -r '.[0].id // empty'
 }
 
 # Function to get attempt count for an issue
@@ -140,7 +151,7 @@ while true; do
 
     # Exit condition 2: No ready work (BUILD mode only)
     if [ "$MODE" = "build" ]; then
-        READY_COUNT=$(bd ready --json 2>/dev/null | jq 'length // 0')
+        READY_COUNT=$($(get_bd_ready_cmd) 2>/dev/null | jq 'length // 0')
 
         if [ "$READY_COUNT" -eq 0 ]; then
             log_success "No ready work remaining - loop complete!"
@@ -180,7 +191,11 @@ while true; do
     # Show current state
     if [ "$MODE" = "build" ]; then
         log_info "Ready queue:"
-        bd ready 2>/dev/null | head -5 || true
+        if [ -n "$RALPH_SCOPE" ]; then
+            bd ready --parent="$RALPH_SCOPE" 2>/dev/null | head -5 || true
+        else
+            bd ready 2>/dev/null | head -5 || true
+        fi
         echo ""
     fi
 
@@ -192,7 +207,8 @@ while true; do
     # --verbose: Detailed execution logging
 
     LAST_EXIT=0
-    cat "$PROMPT_FILE" | claude -p \
+    # Replace template variables in prompt file
+    sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
         --dangerously-skip-permissions \
         --output-format=stream-json \
         --model opus \
