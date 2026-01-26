@@ -4,7 +4,13 @@
 
 0a. Run `bd ready --json | jq '.[0]'` to get the highest-priority unblocked task.
 0b. Run `bd show <id>` to read full context, acceptance criteria, and dependencies.
-0c. Study `specs/*` with up to 25 parallel Sonnet subagents to learn the application requirements.
+0c. **Study requirements** (specs are optional):
+    - If `specs/*` exists → Study specs with up to 25 parallel Sonnet subagents
+    - If no specs exist → The issue description and parent epic ARE the requirements
+      ```bash
+      # Get parent epic for additional context
+      bd show <id> --json | jq -r '.parent' | xargs -I{} bd show {} --json
+      ```
 0d. Study referenced files and existing code for patterns using Sonnet subagents.
 0e. Study existing test patterns: `find . -name "*.test.*" -o -name "*.spec.*" | head -10`
 
@@ -163,7 +169,7 @@ This ensures tests exist BEFORE implementation and forces thinking about verific
 99999999999. If tests unrelated to your work fail, resolve them as part of the increment.
              Single sources of truth, no broken windows.
 
-999999999999. When you find inconsistencies in specs/*, note them for PLANNING mode:
+999999999999. When you find inconsistencies in requirements (specs/* or epic descriptions), note them for PLANNING mode:
               ```bash
-              bd create --title="Spec inconsistency: [description]" --type=task --priority=3
+              bd create --title="Requirement inconsistency: [description]" --type=task --priority=3
               ```

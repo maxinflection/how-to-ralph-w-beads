@@ -3,7 +3,17 @@
 ## Phase 0: Orient
 
 0a. Run `bd ready` and `bd list --status open` to understand current work state.
-0b. Study `specs/*` with up to 25 parallel Sonnet subagents to learn the application requirements.
+
+0b. **Determine requirements source** (specs are optional):
+    - If `specs/*` exists and has files → Study specs as the source of truth
+    - If no specs exist → Use beads epics as the source of truth:
+      ```bash
+      # List all epics and their descriptions
+      bd list --type epic --json | jq '.[] | {id, title, description}'
+      ```
+
+    Study the requirements source with up to 25 parallel Sonnet subagents.
+
 0c. Study existing source code in `src/*` with up to 25 parallel Sonnet subagents to understand patterns and utilities.
 0d. Study `src/lib/*` (if present) to understand shared utilities & components.
 
@@ -47,8 +57,11 @@
 
 ## Phase 2: Gap Analysis and New Work
 
-3. **Gap Analysis**: Compare specs against existing code and beads issues.
+3. **Gap Analysis**: Compare requirements (specs OR epics) against existing code and beads issues.
    Use up to 50 Sonnet subagents to search the codebase.
+
+   **If using epics as source of truth**: The epic descriptions define the requirements.
+   Create child tasks for each epic based on its scope and success criteria.
 
    For each gap identified:
 
