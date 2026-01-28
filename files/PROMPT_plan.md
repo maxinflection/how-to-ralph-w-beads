@@ -23,6 +23,20 @@ This shows current work (within scope if scoped).
 0c. Study existing source code in `src/*` with up to 25 parallel Sonnet subagents to understand patterns and utilities.
 0d. Study `src/lib/*` (if present) to understand shared utilities & components.
 
+## Tool Restrictions
+
+**DO NOT** use TodoWrite, TaskCreate, or markdown files for task tracking.
+
+For ALL task and progress tracking, use beads:
+- `bd comments add <id> "Planning note: ..."` — Log planning observations
+- `bd create --title="..." --type=task` — Create new work
+- `bd update <id> --description/--acceptance` — Refine issues
+- `bd dep add <a> <b>` — Wire dependencies
+
+If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd` command.
+
+---
+
 ## Phase 1: Triage Stuck and Blocked Work
 
 1. **Review stuck issues** (in_progress but not progressing):
@@ -157,6 +171,22 @@ Every issue MUST have:
 - Verifiable acceptance criteria (not vague outcomes)
 - Clear dependencies on blocking work
 - Reference to relevant spec or code location
+
+### Acceptance Criteria Standards
+
+Acceptance criteria define the **contract** between PLAN and BUILD modes. BUILD mode **cannot** modify or reinterpret them.
+
+**Good criteria** (specific, automatable, unambiguous):
+- `npm test src/auth.test.ts` passes with exit 0
+- `cargo test --package matrix-bridge` passes with exit 0
+- `curl localhost:3000/health` returns `{"status":"ok"}`
+
+**Bad criteria** (vague, subjective, easily reinterpreted):
+- "Code is clean" — What does clean mean?
+- "Works correctly" — How is this verified?
+- "Tests pass" without specifying which tests or command
+
+If an acceptance criterion cannot be verified by running a command and checking output, it will be bypassed or reinterpreted. Make criteria **machine-verifiable**.
 
 Acceptance criteria format (see docs/ACCEPTANCE_CRITERIA.md for full patterns):
 ```

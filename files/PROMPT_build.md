@@ -20,6 +20,22 @@ This gets the highest-priority unblocked task (within scope if scoped).
 0d. Study referenced files and existing code for patterns using Sonnet subagents.
 0e. Study existing test patterns: `find . -name "*.test.*" -o -name "*.spec.*" | head -10`
 
+## Tool Restrictions
+
+**DO NOT** use TodoWrite, TaskCreate, or markdown files for task tracking.
+
+For ALL task and progress tracking, use beads:
+- `bd update <id> --status in_progress` — Claim work
+- `bd comments add <id> "Started X"` — Log progress (append-only, creates chronological record)
+- `bd comments add <id> "Completed Y, moving to Z"` — Progress checkpoints
+- `bd create --title="..." --type=task` — Create discovered work
+- `bd close <id>` — Mark complete
+- `bd update <id> --notes "..."` — Persistent context that should remain visible
+
+If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd` command.
+
+---
+
 ## Phase 1: Claim Work
 
 1. **Claim the task**:
@@ -58,6 +74,51 @@ This ensures tests exist BEFORE implementation and forces thinking about verific
    - Use Opus subagents when complex reasoning is needed (debugging, architecture)
 
    If functionality is missing, add it per the specifications. Ultrathink.
+
+### Incremental Development Rule
+
+When creating multiple files (tests, modules, components):
+
+1. **Write ONE file**
+2. **Run verification** (test, compile, lint)
+3. **Fix any failures**
+4. **Commit checkpoint** (optional but recommended)
+5. **Move to next file**
+
+**NEVER write multiple files without verification between them.**
+
+This prevents "batch-and-pray" development where 5 files are written and all fail simultaneously, making debugging exponentially harder.
+
+## Definition of Done
+
+Acceptance criteria with verification commands (e.g., "tests pass", "builds successfully") **MUST be verified locally** before marking complete.
+
+**"Syntax check" is NOT verification.**
+**"CI will run it" is NOT verification.**
+**"Files exist" is NOT verification.**
+
+If verification is impossible:
+1. **ATTEMPT** to fix the environment (install tools, create venv, configure paths)
+2. If still blocked, **CREATE A BLOCKING ISSUE** explaining why verification failed
+3. **DO NOT** mark the task complete
+
+---
+
+## Acceptance Criteria Integrity
+
+You **MUST NOT** reinterpret acceptance criteria during implementation:
+- "tests pass" means tests **PASS**, not "tests exist" or "tests pending CI"
+- "builds successfully" means build **SUCCEEDS**, not "syntax valid"
+- "no lint errors" means lint **RUNS AND PASSES**, not "linter not available"
+
+If you cannot verify a criterion as written:
+1. The task is **BLOCKED**, not complete
+2. Create a blocking issue documenting why verification failed
+3. Move to next available task (`bd ready`)
+
+**NEVER lower the bar to close a task.**
+
+---
 
 ## Phase 3: Validate Against Acceptance Criteria
 
