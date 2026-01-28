@@ -14,7 +14,7 @@
 #   RALPH_LOG=1            Enable output logging to external state directory
 #   RALPH_STATE_DIR=<path> Override state directory (default: ~/.local/state/ralph)
 #   RALPH_SCOPE=<epic-id>  Filter to children of a specific epic
-#   PROMPT_DIR=<path>      Override prompt files directory
+#   PROMPT_DIR=<path>      Override prompt files directory (default: same dir as loop.sh)
 #
 # Exit conditions:
 #   1. bd ready returns empty (no unblocked work) - BUILD mode only
@@ -44,7 +44,7 @@ init_ralph_state
 # Configuration
 ATTEMPT_FILE=$(get_attempts_file)
 MAX_STUCK_ATTEMPTS=3
-PROMPT_DIR="${PROMPT_DIR:-files}"
+PROMPT_DIR="${PROMPT_DIR:-$SCRIPT_DIR}"  # Prompts live alongside this script
 RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
 
 # Parse arguments
