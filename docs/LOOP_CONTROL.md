@@ -56,13 +56,46 @@ When max iterations hit:
 3. Human reviews `bd list --status in_progress` for stuck work
 4. Human reviews `bd blocked` for dependency issues
 
+## State Directory
+
+Ralph stores all operational state outside the project directory to remain "invisible" to your codebase. This means `git status` stays clean - no `.ralph-*` files appear in your project.
+
+### Location
+
+```
+~/.local/state/ralph/
+  projects/
+    <project-hash>/        # SHA256(git-remote-url)[:12]
+      attempts.txt         # Attempt tracking per issue
+      metadata.json        # Project identification
+      logs/                # Output logs (when RALPH_LOG=1)
+```
+
+The project hash is derived from your git remote URL, so the same repository cloned to different locations will share the same state directory.
+
+### Overriding
+
+```bash
+# Use a custom state directory
+RALPH_STATE_DIR=/tmp/my-ralph-state ./loop.sh build
+```
+
+### Legacy Migration
+
+If you have an existing `.ralph-attempts` file in your project directory, Ralph will warn you:
+```
+[WARN] Legacy .ralph-attempts file found in project directory
+       Ralph now stores state externally at: ~/.local/state/ralph/projects/abc123def456
+       You can safely delete .ralph-attempts
+```
+
 ## Stuck Detection
 
 If the same issue stays `in_progress` for multiple iterations without completing, it's likely stuck. The loop tracks attempts per issue:
 
 ```bash
-# In loop.sh
-ATTEMPT_FILE=".ralph-attempts"
+# Attempts are stored externally at:
+# ~/.local/state/ralph/projects/<hash>/attempts.txt
 MAX_STUCK_ATTEMPTS=3
 
 # After 3 failed attempts on the same issue:
@@ -142,6 +175,44 @@ Instead, it must either:
 
 The PLANNING loop then reviews the situation with fresh context and makes structural decisions.
 
+## Output Logging
+
+Enable logging to capture all loop output for debugging:
+
+```bash
+RALPH_LOG=1 ./loop.sh build
+```
+
+Logs are written to `~/.local/state/ralph/projects/<hash>/logs/` with timestamped filenames.
+
+### Log Format
+
+Logs use interleaved JSONL format:
+```jsonl
+{"type":"loop_meta","event":"iteration_start","timestamp":"2026-01-28T15:30:00Z","data":{"iteration":1,"issue_id":"bd-abc","mode":"build"}}
+... claude stream-json output ...
+{"type":"loop_meta","event":"iteration_end","timestamp":"2026-01-28T15:30:45Z","data":{"iteration":1,"exit_code":0,"duration_seconds":45}}
+```
+
+This allows post-hoc analysis:
+```bash
+# Extract just metadata events
+grep '"type":"loop_meta"' ~/.local/state/ralph/projects/*/logs/*.log | jq
+
+# Calculate total iteration time
+jq -s '[.[] | select(.event=="iteration_end") | .data.duration_seconds] | add' < log.log
+
+# Find failed iterations
+jq 'select(.event=="iteration_end" and .data.exit_code != 0)' < log.log
+```
+
+### Log Retention
+
+By default, the 10 most recent log files are retained. Override with:
+```bash
+RALPH_LOG_RETENTION=20 RALPH_LOG=1 ./loop.sh build
+```
+
 ## Troubleshooting Runaway Loops
 
 ### Symptom: Loop keeps running but nothing closes
@@ -156,7 +227,9 @@ If criteria are vague ("works correctly"), the agent can't verify them. Fix in P
 
 **Check**: Is stuck detection working?
 ```bash
-cat .ralph-attempts
+# Attempts file is stored externally
+cat ~/.local/state/ralph/projects/*/attempts.txt
+# Or check the specific project's state directory shown in loop header
 ```
 If an issue has 3+ attempts, the loop should skip it. Check loop.sh implementation.
 
@@ -182,7 +255,8 @@ If reasons are missing or vague, the PROMPT_build.md guardrails may not be stron
 ### Reset a Stuck Issue
 ```bash
 bd update <id> --status open --notes "Reset for retry"
-rm .ralph-attempts  # Clear attempt counter
+# Clear attempt counter (state directory shown in loop header)
+rm ~/.local/state/ralph/projects/<hash>/attempts.txt
 ```
 
 ### Force a Full Replan

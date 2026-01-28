@@ -1,12 +1,20 @@
 #!/bin/bash
 # Ralph+Beads Loop - Agentic coding loop with beads issue tracking
 #
-# Usage: ./loop.sh [plan|build] [max_iterations]
+# Usage: ./loop.sh [--log] [plan|build] [max_iterations]
 # Examples:
 #   ./loop.sh              # Build mode, unlimited iterations
 #   ./loop.sh 20           # Build mode, max 20 iterations
 #   ./loop.sh plan         # Plan mode, unlimited iterations
 #   ./loop.sh plan 5       # Plan mode, max 5 iterations
+#   ./loop.sh --log build  # Build mode with logging enabled
+#   ./loop.sh --log plan 5 # Plan mode with logging, max 5 iterations
+#
+# Environment variables:
+#   RALPH_LOG=1            Enable output logging to external state directory
+#   RALPH_STATE_DIR=<path> Override state directory (default: ~/.local/state/ralph)
+#   RALPH_SCOPE=<epic-id>  Filter to children of a specific epic
+#   PROMPT_DIR=<path>      Override prompt files directory
 #
 # Exit conditions:
 #   1. bd ready returns empty (no unblocked work) - BUILD mode only
@@ -16,16 +24,36 @@
 # Stuck detection:
 #   After 3 failed attempts on the same issue, the agent adds notes
 #   and moves to the next ready task.
+#
+# State management:
+#   All state files (attempts, logs) are stored externally in:
+#   ~/.local/state/ralph/projects/<project-hash>/
+#   This keeps the target project directory clean.
 
 set -euo pipefail
 
+# Get script directory for sourcing libraries
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source state management library
+source "${SCRIPT_DIR}/ralph-state.sh"
+
+# Initialize external state directory
+init_ralph_state
+
 # Configuration
-ATTEMPT_FILE=".ralph-attempts"
+ATTEMPT_FILE=$(get_attempts_file)
 MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-files}"
 RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
 
 # Parse arguments
+# Support: ./loop.sh [--log] [plan|build] [max_iterations]
+if [ "${1:-}" = "--log" ]; then
+    export RALPH_LOG=1
+    shift
+fi
+
 if [ "${1:-}" = "plan" ]; then
     MODE="plan"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_plan.md"
@@ -67,6 +95,7 @@ echo "Prompt: $PROMPT_FILE"
 echo "Branch: $CURRENT_BRANCH"
 [ -n "$RALPH_SCOPE" ] && echo "Scope:  $RALPH_SCOPE (epic-scoped)"
 [ "$MAX_ITERATIONS" -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
+get_ralph_state_info
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify prompt file exists
@@ -207,12 +236,36 @@ while true; do
     # --verbose: Detailed execution logging
 
     LAST_EXIT=0
-    # Replace template variables in prompt file
-    sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
-        --dangerously-skip-permissions \
-        --output-format=stream-json \
-        --model opus \
-        --verbose || LAST_EXIT=$?
+    ITER_START=$(date +%s)
+
+    # Log iteration start if logging enabled
+    if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+        log_event "iteration_start" "{\"iteration\":$ITERATION,\"issue_id\":\"${CURRENT_ISSUE:-none}\",\"mode\":\"$MODE\"}"
+    fi
+
+    # Replace template variables in prompt file and run claude
+    # If logging is enabled, tee output to log file
+    if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
+            --dangerously-skip-permissions \
+            --output-format=stream-json \
+            --model opus \
+            --verbose 2>&1 | tee -a "$_RALPH_LOG_FILE" || LAST_EXIT=$?
+    else
+        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
+            --dangerously-skip-permissions \
+            --output-format=stream-json \
+            --model opus \
+            --verbose || LAST_EXIT=$?
+    fi
+
+    ITER_END=$(date +%s)
+    ITER_DURATION=$((ITER_END - ITER_START))
+
+    # Log iteration end if logging enabled
+    if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+        log_event "iteration_end" "{\"iteration\":$ITERATION,\"exit_code\":$LAST_EXIT,\"duration_seconds\":$ITER_DURATION}"
+    fi
 
     # Check if iteration was successful
     if [ "$LAST_EXIT" -ne 0 ]; then
@@ -247,7 +300,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Loop finished after $ITERATION iterations"
 echo ""
 bd stats 2>/dev/null || true
+if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+    echo ""
+    echo "Log file: $_RALPH_LOG_FILE"
+fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Cleanup
-rm -f "$ATTEMPT_FILE" 2>/dev/null || true
+# Note: Attempt file is preserved externally for cross-session persistence
+# To reset attempts, delete: $ATTEMPT_FILE

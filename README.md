@@ -148,6 +148,47 @@ docs/
 5. Closes with evidence and commits
 6. Loops until `bd ready` is empty
 
+### Output Logging (RALPH_LOG)
+
+Enable logging to capture all loop output for debugging and analysis:
+
+```bash
+# Enable logging via CLI flag
+./loop.sh --log build
+./loop.sh --log plan 5
+
+# Or via environment variable
+RALPH_LOG=1 ./loop.sh build
+
+# Logs are written to: ~/.local/state/ralph/projects/<hash>/logs/
+# Each run creates a timestamped log file (e.g., 2026-01-28T15-30-00.log)
+```
+
+Logs contain interleaved JSONL with loop metadata and claude output:
+```jsonl
+{"type":"loop_meta","event":"iteration_start","timestamp":"...","data":{"iteration":1,"issue_id":"bd-abc"}}
+{"type":"claude_output",...}
+{"type":"loop_meta","event":"iteration_end","timestamp":"...","data":{"iteration":1,"exit_code":0,"duration_seconds":45}}
+```
+
+### External State Directory
+
+Ralph stores all state files outside your project directory to remain "invisible":
+
+```
+~/.local/state/ralph/
+  projects/
+    <project-hash>/        # SHA256(git-remote-url)[:12]
+      attempts.txt         # Attempt tracking (persistent across sessions)
+      metadata.json        # Project name, path, remote URL
+      logs/                # Output logs (when RALPH_LOG=1)
+```
+
+Override the location with `RALPH_STATE_DIR`:
+```bash
+RALPH_STATE_DIR=/tmp/ralph ./loop.sh build
+```
+
 ### Scoped Loops (RALPH_SCOPE)
 
 Run loops scoped to a specific epic, useful for feature branches or worktrees:
