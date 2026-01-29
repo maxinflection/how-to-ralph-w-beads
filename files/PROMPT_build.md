@@ -9,8 +9,18 @@
 - Otherwise: Run `bd ready --json | jq '.[0]'`
 
 This gets the highest-priority unblocked task (within scope if scoped).
-0b. Run `bd show <id>` to read full context, acceptance criteria, and dependencies.
-0c. **Study requirements** (specs are optional):
+
+**0b. Run `bd show <id>`** to read full context, acceptance criteria, and dependencies.
+
+### Minimize Re-fetching (Efficiency)
+
+- **Cache issue details mentally** - after `bd show`, you have the full context. Don't call `bd show` again for the same issue unless you need to verify changes.
+- **Use bd ready output directly** - when closing a task, the next `bd ready` shows what's available. Don't run redundant queries.
+- **Avoid repeated bd list calls** - if you just ran `bd ready`, you already know what's available.
+
+Orientation overhead should be <15% of tool calls. If you're running `bd show` or `bd ready` repeatedly for the same information, pause and use context you already have.
+
+**0c. Study requirements** (specs are optional):
     - If `specs/*` exists → Study specs with up to 25 parallel Sonnet subagents
     - If no specs exist → The issue description and parent epic ARE the requirements
       ```bash
@@ -110,6 +120,35 @@ You **MUST NOT** reinterpret acceptance criteria during implementation:
 - "tests pass" means tests **PASS**, not "tests exist" or "tests pending CI"
 - "builds successfully" means build **SUCCEEDS**, not "syntax valid"
 - "no lint errors" means lint **RUNS AND PASSES**, not "linter not available"
+
+### Invalid Verification Shortcuts (PROHIBITED)
+
+| AC Says | Invalid Shortcut | Why It's Wrong |
+|---------|------------------|----------------|
+| "tests pass" | "syntax is valid" | Syntax check doesn't execute tests |
+| "tests pass" | "code looks correct" | Visual inspection isn't verification |
+| "tests pass" | "CI will run it" | Defers verification, breaks the loop |
+| "builds successfully" | "no syntax errors" | Compile ≠ syntax check |
+| "lint passes" | "linter not installed" | Environment issue, not completion |
+
+### Handling Missing Test Dependencies
+
+When tests cannot run due to missing dependencies:
+
+1. **In sandbox environments**: Attempt to install dependencies
+   - `pip install <pkg>`, `npm install`, `cargo install`, etc.
+   - Check for requirements.txt, package.json, Cargo.toml
+
+2. **If installation fails**: Create a blocking issue
+   ```bash
+   bd create --title="Blocker: Missing <dep> for tests" --type=bug --priority=1 \
+     --description="Cannot verify <task-id>: <dependency> missing.
+   Tried: <what you tried>
+   Error: <error message>"
+   bd dep add <original-task> <new-blocker-id>
+   ```
+
+3. **Move to next ready task** - don't close with unverified AC
 
 If you cannot verify a criterion as written:
 1. The task is **BLOCKED**, not complete
