@@ -113,7 +113,7 @@ clean_old_logs() {
 # Usage: log_event "iteration_start" '{"iteration": 1, "issue_id": "bd-abc"}'
 log_event() {
     local event_type="$1"
-    local data="${2:-{}}"
+    local data="${2:-"{}"}"
     local log_file="${3:-$_RALPH_LOG_FILE}"
 
     if [ -z "$log_file" ] || [ "$RALPH_LOG" != "1" ]; then
