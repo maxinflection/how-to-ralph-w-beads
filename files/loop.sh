@@ -5,6 +5,8 @@
 # Examples:
 #   ./loop.sh              # Build mode, unlimited iterations
 #   ./loop.sh 20           # Build mode, max 20 iterations
+#   ./loop.sh build        # Build mode, unlimited iterations (explicit)
+#   ./loop.sh build 10     # Build mode, max 10 iterations
 #   ./loop.sh plan         # Plan mode, unlimited iterations
 #   ./loop.sh plan 5       # Plan mode, max 5 iterations
 #   ./loop.sh --log build  # Build mode with logging enabled
@@ -58,6 +60,10 @@ if [ "${1:-}" = "plan" ]; then
     MODE="plan"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_plan.md"
     MAX_ITERATIONS=${2:-0}
+elif [ "${1:-}" = "build" ]; then
+    MODE="build"
+    PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
+    MAX_ITERATIONS=${2:-0}
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
     MODE="build"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
@@ -65,7 +71,7 @@ elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
 else
     MODE="build"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
-    MAX_ITERATIONS=${1:-0}
+    MAX_ITERATIONS=0
 fi
 
 ITERATION=0
