@@ -274,7 +274,8 @@ while true; do
         # Reset attempts on success (issue was likely closed)
         if [ -n "${CURRENT_ISSUE:-}" ]; then
             # Check if issue was closed
-            ISSUE_STATUS=$(bd show "$CURRENT_ISSUE" --json 2>/dev/null | jq -r '.status // "unknown"')
+            # Handle both object and array responses from bd show --json
+            ISSUE_STATUS=$(bd show "$CURRENT_ISSUE" --json 2>/dev/null | jq -r '(if type == "array" then .[0] else . end) | .status // "unknown"') || ISSUE_STATUS="unknown"
             if [ "$ISSUE_STATUS" = "closed" ]; then
                 log_success "Issue $CURRENT_ISSUE closed successfully"
                 reset_attempts "$CURRENT_ISSUE"
