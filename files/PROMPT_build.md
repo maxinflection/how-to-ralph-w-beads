@@ -15,7 +15,7 @@ This gets the highest-priority unblocked task (within scope if scoped).
     - If no specs exist → The issue description and parent epic ARE the requirements
       ```bash
       # Get parent epic for additional context
-      bd show <id> --json | jq -r '.parent' | xargs -I{} bd show {} --json
+      bd show <id> --json | jq -r '.[0].parent' | xargs -I{} bd show {}
       ```
 0d. Study referenced files and existing code for patterns using Sonnet subagents.
 0e. Study existing test patterns: `find . -name "*.test.*" -o -name "*.spec.*" | head -10`
@@ -49,7 +49,7 @@ Before writing any implementation code, create test stubs that codify the accept
 
 1. Read the acceptance criteria:
    ```bash
-   bd show <id> --json | jq -r '.acceptance'
+   bd show <id> --json | jq -r '.[0].acceptance_criteria'
    ```
 
 2. For each testable criterion, create a test stub:
@@ -188,7 +188,7 @@ If you cannot verify a criterion as written:
 
    ```bash
    # Verify all criteria one more time
-   bd show <id> --json | jq -r '.acceptance'
+   bd show <id> --json | jq -r '.[0].acceptance_criteria'
    # Run all verification commands, confirm all pass
 
    # Close with evidence

@@ -180,7 +180,7 @@ The BUILDING prompt requires this validation flow:
 
 ```bash
 # 1. Read acceptance criteria from issue
-bd show <id> --json | jq -r '.acceptance'
+bd show <id> --json | jq -r '.[0].acceptance_criteria'
 
 # 2. For each criterion with a command, run it
 npm test src/auth.test.ts

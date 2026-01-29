@@ -219,7 +219,7 @@ RALPH_LOG_RETENTION=20 RALPH_LOG=1 ./loop.sh build
 
 **Check**: Are acceptance criteria verifiable?
 ```bash
-bd list --status in_progress --json | jq '.[].acceptance'
+bd list --status in_progress --json | jq '.[].acceptance_criteria'
 ```
 If criteria are vague ("works correctly"), the agent can't verify them. Fix in PLANNING mode.
 
@@ -246,7 +246,7 @@ If everything is blocked, you have a dependency problem. Review in PLANNING mode
 
 **Check**: Close reasons
 ```bash
-bd show <id> --json | jq '.close_reason'
+bd show <id> --json | jq '.[0].close_reason'
 ```
 If reasons are missing or vague, the PROMPT_build.md guardrails may not be strong enough.
 
