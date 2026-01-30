@@ -49,6 +49,17 @@ MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-$SCRIPT_DIR}"  # Prompts live alongside this script
 RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
 
+# Ensure a value is a non-negative integer, default to 0
+# Usage: MAX_ITERATIONS=$(ensure_int "$value")
+ensure_int() {
+    local val="${1:-0}"
+    if [[ "$val" =~ ^[0-9]+$ ]]; then
+        echo "$val"
+    else
+        echo "0"
+    fi
+}
+
 # Parse arguments
 # Support: ./loop.sh [--log] [plan|build] [max_iterations]
 if [ "${1:-}" = "--log" ]; then
@@ -59,15 +70,15 @@ fi
 if [ "${1:-}" = "plan" ]; then
     MODE="plan"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_plan.md"
-    MAX_ITERATIONS=${2:-0}
+    MAX_ITERATIONS=$(ensure_int "${2:-0}")
 elif [ "${1:-}" = "build" ]; then
     MODE="build"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
-    MAX_ITERATIONS=${2:-0}
+    MAX_ITERATIONS=$(ensure_int "${2:-0}")
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
     MODE="build"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
-    MAX_ITERATIONS=$1
+    MAX_ITERATIONS=$(ensure_int "$1")
 else
     MODE="build"
     PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
@@ -127,7 +138,9 @@ get_ready_issue() {
 # Function to get attempt count for an issue
 get_attempts() {
     local issue_id="$1"
-    grep "^${issue_id}:" "$ATTEMPT_FILE" 2>/dev/null | cut -d: -f2 || echo 0
+    local val
+    val=$(grep "^${issue_id}:" "$ATTEMPT_FILE" 2>/dev/null | cut -d: -f2 || echo 0)
+    ensure_int "$val"
 }
 
 # Function to increment attempt count
