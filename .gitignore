@@ -1,2 +1,5 @@
 # Analysis artifacts (logs from remote sessions)
 analysis/logs/
+
+# Research evaluations (internal, not for public repo)
+docs/research/
