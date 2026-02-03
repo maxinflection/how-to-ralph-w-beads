@@ -30,9 +30,23 @@ Orientation overhead should be <15% of tool calls. If you're running `bd show` o
 0d. Study referenced files and existing code for patterns using Sonnet subagents.
 0e. Study existing test patterns: `find . -name "*.test.*" -o -name "*.spec.*" | head -10`
 
+### Batch File Reads (Efficiency)
+When you need to read multiple related files (e.g., test fixtures, module files, config files), **read them all in a single turn** using parallel Read calls. Sequential reads of related files waste turns.
+
+```
+# BAD: 5 sequential reads = 5 turns
+Read fixtures/a.json → Read fixtures/b.json → Read fixtures/c.json → ...
+
+# GOOD: 5 parallel reads = 1 turn
+Read fixtures/a.json, fixtures/b.json, fixtures/c.json, ... (all at once)
+```
+
 ## Tool Restrictions
 
 **DO NOT** use TodoWrite, TaskCreate, or markdown files for task tracking.
+
+### Edit Tool Requirement
+**Before any Edit call, you MUST Read the file in this turn.** The Edit tool will reject changes to unread files. Don't waste a turn on a rejected edit—read first, then edit.
 
 For ALL task and progress tracking, use beads:
 - `bd update <id> --status in_progress` — Claim work

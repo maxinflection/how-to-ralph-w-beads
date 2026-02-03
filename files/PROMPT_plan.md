@@ -23,6 +23,14 @@ This shows current work (within scope if scoped).
 0c. Study existing source code in `src/*` with up to 25 parallel Sonnet subagents to understand patterns and utilities.
 0d. Study `src/lib/*` (if present) to understand shared utilities & components.
 
+### Batch File Reads (Efficiency)
+When you need to read multiple related files, **read them all in a single turn** using parallel Read calls. Sequential reads waste turns.
+
+```
+# GOOD: Read related files together
+Read src/auth/index.ts, src/auth/types.ts, src/auth/utils.ts (all at once)
+```
+
 ## Tool Restrictions
 
 **DO NOT** use TodoWrite, TaskCreate, or markdown files for task tracking.
