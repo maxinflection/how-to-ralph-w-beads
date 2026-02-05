@@ -171,6 +171,47 @@ If you cannot verify a criterion as written:
 
 **NEVER lower the bar to close a task.**
 
+### ⚠️ Completion Bias Warning
+
+You will feel a pull toward marking tasks "done" - especially when you're in a flow state closing multiple tasks. This is **completion bias**.
+
+Signs you're rationalizing:
+- "The infrastructure is complete" (but AC says deliver X, not infrastructure for X)
+- "I documented the gap in the close reason" (documentation ≠ completion)
+- "It's mostly done" (partial ≠ done)
+- "The hard part is finished" (hard part done ≠ AC satisfied)
+
+If you catch yourself thinking "close enough" → **STOP**. The task is BLOCKED, not complete. The beads graph depends on accurate state. Future sessions and other agents will trust your close reason.
+
+### Handling Tasks Requiring External Resources
+
+Some tasks require resources you cannot produce (external datasets, API keys, human review, physical hardware, etc.).
+
+**Pattern: Label as `manual` and document what's needed**
+
+```bash
+# Add the manual label
+bd label add <id> manual
+
+# Document what was done vs what remains
+bd comments add <id> "
+BLOCKED - Requires manual intervention:
+- Completed: [what you built]
+- Remaining: [what requires human action]
+- Next steps: [specific instructions for human]
+"
+
+# Update notes for visibility
+bd update <id> --notes "MANUAL: [brief description of what's needed]"
+```
+
+**Do NOT close tasks requiring manual intervention.** Leave them open with the `manual` label so they appear in filtered queries and humans know action is needed.
+
+Example scenarios:
+- Task requires audio samples from external datasets → label `manual`, document sourcing instructions
+- Task requires API credentials → label `manual`, document which credentials and where to configure
+- Task requires human review/approval → label `manual`, document what to review
+
 ---
 
 ## Phase 3: Validate Against Acceptance Criteria
