@@ -1,5 +1,6 @@
 # Dolt embedded database
 dolt/
+dolt-access.lock
 
 # SQLite databases (legacy)
 *.db
