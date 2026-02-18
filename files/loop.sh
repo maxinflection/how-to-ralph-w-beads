@@ -43,11 +43,17 @@ source "${SCRIPT_DIR}/ralph-state.sh"
 # Initialize external state directory
 init_ralph_state
 
+# Cleanup temp files on exit
+cleanup() { rm -f "${_ITER_OUTPUT_FILE:-}" 2>/dev/null || true; }
+trap cleanup EXIT
+
 # Configuration
 ATTEMPT_FILE=$(get_attempts_file)
 MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-$SCRIPT_DIR}"  # Prompts live alongside this script
 RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
+CCUSAGE_CMD="${CCUSAGE_CMD:-npx ccusage}"  # Override with e.g. "bunx ccusage" or direct path
+_ITER_OUTPUT_FILE=""
 
 # Ensure a value is a non-negative integer, default to 0
 # Usage: MAX_ITERATIONS=$(ensure_int "$value")
@@ -165,6 +171,18 @@ reset_attempts() {
     mv "${ATTEMPT_FILE}.tmp" "$ATTEMPT_FILE" 2>/dev/null || touch "$ATTEMPT_FILE"
 }
 
+# Function to decrement attempt count (undo a pre-iteration increment)
+decrement_attempts() {
+    local issue_id="$1"
+    local current_attempts
+    current_attempts=$(get_attempts "$issue_id")
+    local new_attempts=$((current_attempts > 0 ? current_attempts - 1 : 0))
+
+    grep -v "^${issue_id}:" "$ATTEMPT_FILE" > "${ATTEMPT_FILE}.tmp" 2>/dev/null || true
+    echo "${issue_id}:${new_attempts}" >> "${ATTEMPT_FILE}.tmp"
+    mv "${ATTEMPT_FILE}.tmp" "$ATTEMPT_FILE"
+}
+
 # Function to check if issue is stuck
 check_stuck() {
     local issue_id="$1"
@@ -184,6 +202,82 @@ check_stuck() {
     fi
 
     return 1  # Not stuck
+}
+
+# Check if iteration output indicates quota exhaustion
+# Returns 0 if rate_limit error found in stream-json output
+check_quota_exhaustion() {
+    local output_file="$1"
+    [ -f "$output_file" ] || return 1
+    grep -q '"error":"rate_limit"' "$output_file" 2>/dev/null
+}
+
+# Calculate seconds until quota resets
+# Tries ccusage for exact endTime, falls back to parsing message, ultimate fallback 5h
+get_quota_reset_seconds() {
+    local message="${1:-}"
+    local now_epoch reset_epoch sleep_secs
+
+    now_epoch=$(date +%s)
+
+    # Try ccusage for exact block end time
+    if command -v npx &>/dev/null || command -v bunx &>/dev/null; then
+        local end_time
+        end_time=$($CCUSAGE_CMD blocks --active --json 2>/dev/null | jq -r '.blocks[0].endTime // empty' 2>/dev/null) || true
+        if [ -n "$end_time" ]; then
+            reset_epoch=$(date -d "$end_time" +%s 2>/dev/null) || true
+            if [ -n "$reset_epoch" ] && [ "$reset_epoch" -gt "$now_epoch" ]; then
+                sleep_secs=$((reset_epoch - now_epoch + 60))  # 60s buffer
+                echo "$sleep_secs"
+                return
+            fi
+        fi
+    fi
+
+    # Fallback: parse reset hour from error message ("resets 6am (UTC)")
+    local reset_hour
+    reset_hour=$(echo "$message" | grep -oP 'resets \K[0-9]+' 2>/dev/null) || true
+    if [ -n "$reset_hour" ]; then
+        # Calculate next occurrence of that UTC hour
+        local current_utc_date
+        current_utc_date=$(date -u +%Y-%m-%dT)
+        reset_epoch=$(date -u -d "${current_utc_date}${reset_hour}:00:00" +%s 2>/dev/null) || true
+        if [ -n "$reset_epoch" ]; then
+            # If reset hour has passed today, it's tomorrow
+            if [ "$reset_epoch" -le "$now_epoch" ]; then
+                reset_epoch=$((reset_epoch + 86400))
+            fi
+            sleep_secs=$((reset_epoch - now_epoch + 60))
+            echo "$sleep_secs"
+            return
+        fi
+    fi
+
+    # Ultimate fallback: 5 hours
+    echo "18060"
+}
+
+# Sleep until quota resets with countdown display
+# Ctrl+C during sleep aborts the loop
+sleep_until_reset() {
+    local total_seconds="$1"
+    local wake_time
+    wake_time=$(date -d "+${total_seconds} seconds" '+%Y-%m-%d %H:%M:%S %Z')
+
+    log_warn "Quota exhausted. Sleeping until reset..."
+    log_info "Wake time: $wake_time (${total_seconds}s from now)"
+    echo ""
+
+    local remaining="$total_seconds"
+    while [ "$remaining" -gt 0 ]; do
+        local hours=$((remaining / 3600))
+        local mins=$(( (remaining % 3600) / 60 ))
+        local secs=$((remaining % 60))
+        printf "\r  ⏳ Quota reset in %02d:%02d:%02d (Ctrl+C to abort) " "$hours" "$mins" "$secs"
+        sleep 1
+        remaining=$((remaining - 1))
+    done
+    printf "\r  ✅ Quota reset period elapsed. Resuming...                    \n"
 }
 
 # Initialize attempt file
@@ -263,19 +357,18 @@ while true; do
     fi
 
     # Replace template variables in prompt file and run claude
-    # If logging is enabled, tee output to log file
+    # Always capture output to temp file for quota detection
+    _ITER_OUTPUT_FILE="${_RALPH_PROJECT_STATE_DIR}/iter-output-$$.tmp"
+
+    sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
+        --dangerously-skip-permissions \
+        --output-format=stream-json \
+        --model opus \
+        --verbose 2>&1 | tee "$_ITER_OUTPUT_FILE" || LAST_EXIT=$?
+
+    # Append to log file if logging enabled
     if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
-        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
-            --dangerously-skip-permissions \
-            --output-format=stream-json \
-            --model opus \
-            --verbose 2>&1 | tee -a "$_RALPH_LOG_FILE" || LAST_EXIT=$?
-    else
-        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | claude -p \
-            --dangerously-skip-permissions \
-            --output-format=stream-json \
-            --model opus \
-            --verbose || LAST_EXIT=$?
+        cat "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE"
     fi
 
     ITER_END=$(date +%s)
@@ -285,6 +378,43 @@ while true; do
     if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
         log_event "iteration_end" "{\"iteration\":$ITERATION,\"exit_code\":$LAST_EXIT,\"duration_seconds\":$ITER_DURATION}"
     fi
+
+    # Check for quota exhaustion before normal exit handling
+    if check_quota_exhaustion "$_ITER_OUTPUT_FILE"; then
+        log_warn "Quota exhaustion detected (rate_limit error)"
+
+        if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+            log_event "quota_exhausted" "{\"iteration\":$ITERATION,\"issue_id\":\"${CURRENT_ISSUE:-none}\"}"
+        fi
+
+        # Undo the attempt increment — quota hit isn't a real attempt
+        if [ -n "${CURRENT_ISSUE:-}" ]; then
+            decrement_attempts "$CURRENT_ISSUE"
+        fi
+
+        # Don't count this iteration toward max
+        ITERATION=$((ITERATION - 1))
+
+        # Extract error message for fallback parsing
+        QUOTA_ERROR_MSG=$(grep '"error":"rate_limit"' "$_ITER_OUTPUT_FILE" | jq -r '.result // empty' 2>/dev/null | head -1) || QUOTA_ERROR_MSG=""
+
+        QUOTA_SLEEP_SECS=$(get_quota_reset_seconds "$QUOTA_ERROR_MSG")
+
+        if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+            log_event "quota_sleep_start" "{\"sleep_seconds\":$QUOTA_SLEEP_SECS}"
+        fi
+
+        rm -f "$_ITER_OUTPUT_FILE" 2>/dev/null || true
+        sleep_until_reset "$QUOTA_SLEEP_SECS"
+
+        if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
+            log_event "quota_sleep_end" "{}"
+        fi
+
+        continue  # Skip beads sync / git push (nothing to sync)
+    fi
+
+    rm -f "$_ITER_OUTPUT_FILE" 2>/dev/null || true
 
     # Check if iteration was successful
     if [ "$LAST_EXIT" -ne 0 ]; then

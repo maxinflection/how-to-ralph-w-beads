@@ -213,6 +213,45 @@ By default, the 10 most recent log files are retained. Override with:
 RALPH_LOG_RETENTION=20 RALPH_LOG=1 ./loop.sh build
 ```
 
+## Quota Exhaustion Handling
+
+When Claude's subscription quota is exhausted mid-loop, the API returns a `rate_limit` error instead of useful output. Without detection, the loop would spin through dozens of wasted iterations in seconds.
+
+### How It Works
+
+After each iteration, the loop checks the stream-json output for:
+```json
+{"type":"result",...,"is_error":true,"error":"rate_limit","result":"You're out of extra usage ..."}
+```
+
+When detected:
+
+1. **No wasted counting** — the iteration and attempt counters are decremented so the quota hit doesn't count toward max iterations or stuck detection
+2. **Calculate reset time** — uses `npx ccusage blocks --active --json` to get the exact block `endTime`, with fallback to parsing the reset hour from the error message, and an ultimate fallback of 5 hours
+3. **Sleep with countdown** — displays a live countdown timer showing time remaining until reset
+4. **Clean resume** — after the sleep, the loop continues from where it left off (skipping the sync/push since there's nothing to commit)
+
+### Overriding the ccusage Command
+
+By default, the loop runs `npx ccusage`. Override with:
+```bash
+CCUSAGE_CMD="bunx ccusage" ./loop.sh build      # Use bun
+CCUSAGE_CMD="~/.bun/bin/ccusage" ./loop.sh build # Use direct binary
+```
+
+### Aborting During Sleep
+
+Press Ctrl+C during the countdown to terminate the loop immediately. The cleanup trap ensures temp files are removed.
+
+### Log Events
+
+When logging is enabled (`RALPH_LOG=1`), quota events are recorded:
+```jsonl
+{"type":"loop_meta","event":"quota_exhausted","timestamp":"...","data":{"iteration":5,"issue_id":"bd-abc"}}
+{"type":"loop_meta","event":"quota_sleep_start","timestamp":"...","data":{"sleep_seconds":3660}}
+{"type":"loop_meta","event":"quota_sleep_end","timestamp":"...","data":{}}
+```
+
 ## Troubleshooting Runaway Loops
 
 ### Symptom: Loop keeps running but nothing closes
