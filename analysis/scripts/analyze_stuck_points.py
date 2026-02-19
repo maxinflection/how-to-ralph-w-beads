@@ -18,12 +18,17 @@ def parse_event(line):
     line = line.strip()
     if not line:
         return None
-    # Fix double }} bug in loop_meta events
-    if line.endswith('}}') and '"loop_meta"' in line:
-        line = line[:-1]
     try:
         return json.loads(line)
     except json.JSONDecodeError:
+        # Try progressively stripping trailing braces for genuinely malformed lines
+        for _ in range(3):
+            if line.endswith('}'):
+                line = line[:-1]
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    continue
         return None
 
 

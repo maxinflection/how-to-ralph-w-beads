@@ -8,11 +8,16 @@ def parse_event(line):
     line = line.strip()
     if not line:
         return None
-    if line.endswith('}}') and '"loop_meta"' in line:
-        line = line[:-1]
     try:
         return json.loads(line)
-    except:
+    except json.JSONDecodeError:
+        for _ in range(3):
+            if line.endswith('}'):
+                line = line[:-1]
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    continue
         return None
 
 def analyze_flow(file_path):

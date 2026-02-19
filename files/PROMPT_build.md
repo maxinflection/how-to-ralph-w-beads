@@ -10,6 +10,33 @@
 
 This gets the highest-priority unblocked task (within scope if scoped).
 
+### Early Exit: No Automatable Work
+
+After getting the ready queue, check if there is actually work you can do. **Exit immediately** (don't try to "verify" or "audit" existing code) if ALL of the following are true:
+
+1. The only ready items are **epics** (not tasks/bugs/features) — epics are containers, not actionable work
+2. All open child tasks are labeled `manual` (require human intervention)
+3. All open child tasks are **blocked** by issues you cannot resolve (e.g., live infrastructure tests, external team coordination, credentials)
+
+To check efficiently:
+```bash
+# Get non-epic ready tasks (if scoped)
+bd ready --parent=${RALPH_SCOPE} --json 2>/dev/null | \
+  python3 -c "import sys,json; tasks=[t for t in json.load(sys.stdin) if t.get('issue_type') in ('task','bug','feature')]; print(json.dumps(tasks))" | \
+  jq 'length'
+# If 0: check if remaining open tasks are all manual/blocked
+bd list --parent=${RALPH_SCOPE} --status=open --json 2>/dev/null | \
+  python3 -c "import sys,json; tasks=json.load(sys.stdin); manual=[t for t in tasks if 'manual' in t.get('labels',[])]; print(f'{len(manual)}/{len(tasks)} manual')"
+```
+
+If there are no automatable tasks, output a brief status summary and **exit cleanly** — do NOT:
+- Re-read files you've already verified in previous iterations
+- Re-run tests that already pass
+- Write audit summaries or verification reports
+- Query `bd show` for issues you already know are manual/blocked
+
+The loop will handle retrying on the next cycle or after a planning session unblocks work.
+
 **0b. Run `bd show <id>`** to read full context, acceptance criteria, and dependencies.
 
 ### Minimize Re-fetching (Efficiency)
@@ -297,6 +324,27 @@ Example scenarios:
    git add -A
    git commit -m "[<id>] [description of what was implemented]"
    ```
+
+## Context Preservation: Checkpoint and Exit
+
+Long iterations degrade quality. After ~180K tokens, the system compresses your conversation history, which loses prompt instructions and prior reasoning. This leads to worse decisions: repeated work, lost discipline, and workflow violations.
+
+**After completing and committing a substantial piece of work** (a task close + git commit), evaluate whether to continue or exit:
+
+**Exit this iteration if ANY of these are true:**
+- You have closed 1+ tasks AND the next ready task is a different kind of work (new topic, different subsystem)
+- You have been working for a long time with many tool calls (100+) — a fresh context will be more effective
+- You just committed a complex, multi-file change — the next task benefits from starting clean
+- The next ready task is blocked, manual, or an epic (see Early Exit rules above)
+
+**How to exit cleanly:**
+1. Ensure all changes are committed and pushed
+2. Update any in-progress issues with notes on current state
+3. Run `bd sync`
+4. Output a brief summary of what was accomplished
+5. Stop — the loop will start a fresh iteration with full context
+
+**Do NOT try to "squeeze in" one more task** after substantial work. The loop gives you unlimited iterations — fresh context is always better than stale context.
 
 ## Guardrails (in order of importance)
 
