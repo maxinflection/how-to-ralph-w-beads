@@ -22,11 +22,10 @@ To check efficiently:
 ```bash
 # Get non-epic ready tasks (if scoped)
 bd ready --parent=${RALPH_SCOPE} --json 2>/dev/null | \
-  python3 -c "import sys,json; tasks=[t for t in json.load(sys.stdin) if t.get('issue_type') in ('task','bug','feature')]; print(json.dumps(tasks))" | \
-  jq 'length'
+  jq '[.[] | select(.issue_type == "task" or .issue_type == "bug" or .issue_type == "feature")] | length'
 # If 0: check if remaining open tasks are all manual/blocked
 bd list --parent=${RALPH_SCOPE} --status=open --json 2>/dev/null | \
-  python3 -c "import sys,json; tasks=json.load(sys.stdin); manual=[t for t in tasks if 'manual' in t.get('labels',[])]; print(f'{len(manual)}/{len(tasks)} manual')"
+  jq '"\([.[] | select(.labels[]? == "manual")] | length)/\(length) manual"'
 ```
 
 If there are no automatable tasks, output a brief status summary and **exit cleanly** — do NOT:
