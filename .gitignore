@@ -3,3 +3,7 @@ analysis/logs/
 
 # Research evaluations (internal, not for public repo)
 docs/research/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
