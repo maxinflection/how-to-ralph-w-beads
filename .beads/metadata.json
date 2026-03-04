@@ -1,4 +1,1 @@
-{
-  "database": "dolt",
-  "jsonl_export": "issues.jsonl"
-}
+{"dolt_database":"beads_htrwb","dolt_server_port":14285}
