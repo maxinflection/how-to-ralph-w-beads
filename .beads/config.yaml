@@ -60,3 +60,7 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+
+# Dolt remote for sandbox bootstrap (bd init auto-clones from this URL)
+sync:
+  git-remote: "https://gitlab.internal.ipnts.ai/max/htrwb.git"
