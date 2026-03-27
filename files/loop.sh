@@ -53,7 +53,7 @@ ATTEMPT_FILE=$(get_attempts_file)
 MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-$SCRIPT_DIR}"  # Prompts live alongside this script
 RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
-CCUSAGE_CMD="${CCUSAGE_CMD:-npx ccusage}"  # Override with e.g. "bunx ccusage" or direct path
+CCUSAGE_CMD="${CCUSAGE_CMD:-bunx ccusage}"  # Override with direct path if needed
 ITER_TIMEOUT="${ITER_TIMEOUT:-2700}"  # Max seconds per iteration (default: 45min). 0 = no limit.
 _ITER_OUTPUT_FILE=""
 
@@ -371,13 +371,13 @@ while true; do
         set +o pipefail
         sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
             timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
-            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --verbose 2>&1 | \
+            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
             tee "$_ITER_OUTPUT_FILE"
         LAST_EXIT=${PIPESTATUS[1]}  # claude/timeout's exit code, not tee's
         set -o pipefail
     else
         sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
-            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --verbose 2>&1 | \
+            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
             tee "$_ITER_OUTPUT_FILE" || LAST_EXIT=$?
     fi
 
@@ -454,7 +454,7 @@ while true; do
 
     # Sync beads and push changes
     log_info "Syncing changes..."
-    bd sync 2>/dev/null || log_warn "bd sync had warnings"
+    bd dolt push 2>/dev/null || log_warn "bd dolt push had warnings"
 
     git push origin "$CURRENT_BRANCH" 2>/dev/null || {
         log_info "Creating remote branch..."

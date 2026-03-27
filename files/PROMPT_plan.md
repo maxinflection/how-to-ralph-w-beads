@@ -98,8 +98,9 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    a. Check if a beads issue already exists:
       ```bash
       bd search "keyword"
-      bd list --json | jq '.[] | select(.title | contains("keyword"))'
+      bd query "title=keyword AND status!=closed"
       ```
+      Also run `bd find-duplicates` periodically to catch semantically similar issues before creating new ones.
 
    b. If not, create an epic or issue with VERIFIABLE acceptance criteria:
 
@@ -125,8 +126,11 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    **For Tasks** (implementable units of work):
    ```bash
    # If RALPH_SCOPE is set, use --parent=${RALPH_SCOPE} (or child epic)
+   # Use --deps to wire dependencies inline (no separate bd dep add needed)
+   # Use --dry-run to preview before creating
    bd create --title="Implement [specific thing]" --type=task --priority=2 \
      --parent=<epic-id-or-RALPH_SCOPE> \
+     --deps="<blocking-task-id>" \
      --description="
    ## Context
    [Why this task exists]
@@ -145,20 +149,22 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    "
    ```
 
+   Valid issue types: `bug`, `feature`, `task`, `epic`, `chore`, `decision`
+
    c. **Derive test requirements from acceptance criteria**:
       - What behavior needs testing? → Unit test criterion
       - What integration points? → Integration test criterion
       - What error cases? → Error handling criteria
       - What commands verify success? → Include exact commands
 
-   d. Add blocking dependencies between related tasks:
+   d. Add blocking dependencies between related tasks (if not already wired via `--deps`):
       ```bash
       bd dep add <task-that-waits> <task-that-blocks>
       ```
 
 4. **Dependency Wiring**: Ensure all blocking relationships are captured.
    ```bash
-   bd list --json | jq '.[] | {id, title, blockedBy}'
+   bd query "status=open" --json | jq '.[] | {id, title, blockedBy}'
    ```
    Check for:
    - Tasks that logically depend on each other but aren't linked

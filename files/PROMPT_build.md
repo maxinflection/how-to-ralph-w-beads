@@ -20,12 +20,10 @@ After getting the ready queue, check if there is actually work you can do. **Exi
 
 To check efficiently:
 ```bash
-# Get non-epic ready tasks (if scoped)
-bd ready --parent=${RALPH_SCOPE} --json 2>/dev/null | \
-  jq '[.[] | select(.issue_type == "task" or .issue_type == "bug" or .issue_type == "feature")] | length'
+# Count non-epic ready tasks (if scoped)
+bd query "status=open AND (type=task OR type=bug OR type=feature)" --limit 0 --json 2>/dev/null | jq 'length'
 # If 0: check if remaining open tasks are all manual/blocked
-bd list --parent=${RALPH_SCOPE} --status=open --json 2>/dev/null | \
-  jq '"\([.[] | select(.labels[]? == "manual")] | length)/\(length) manual"'
+bd query "status=open AND label=manual" --json 2>/dev/null | jq 'length'
 ```
 
 If there are no automatable tasks, output a brief status summary and **exit cleanly** — do NOT:
@@ -80,7 +78,7 @@ For ALL task and progress tracking, use beads:
 - `bd comments add <id> "Completed Y, moving to Z"` — Progress checkpoints
 - `bd create --title="..." --type=task` — Create discovered work
 - `bd close <id>` — Mark complete
-- `bd update <id> --notes "..."` — Persistent context that should remain visible
+- `bd note <id> "..."` — Append persistent context (shorthand for update --append-notes)
 
 If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd` command.
 
@@ -214,6 +212,7 @@ If you catch yourself thinking "close enough" → **STOP**. The task is BLOCKED,
 Some tasks require resources you cannot produce (external datasets, API keys, human review, physical hardware, etc.).
 
 **Pattern: Label as `manual` and document what's needed**
+(For async coordination — e.g., waiting on CI, PR merge, or cross-project work — consider `bd gate` instead of manual labels. Gates auto-resolve when conditions are met.)
 
 ```bash
 # Add the manual label
@@ -274,8 +273,9 @@ Example scenarios:
       " \
         --acceptance="- [ ] [Specific test] passes | \`[command]\` | exit 0"
 
+      # Wire dependency: current task now depends on the new bug fix
       bd dep add <current-id> <new-bug-id>
-      bd update <current-id> --notes "Blocked by <new-bug-id>: [brief description]"
+      bd note <current-id> "Blocked by <new-bug-id>: [brief description]"
       ```
       Then move to next ready task.
 
@@ -286,15 +286,17 @@ Example scenarios:
 4. **If you discover issues during implementation**:
    ```bash
    # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
+   # Use --deps to wire the dependency inline (no separate bd dep add needed)
    bd create --title="Discovered: [issue]" --type=bug --priority=2 \
      --parent=<RALPH_SCOPE-if-set> \
+     --deps="<current-id>" \
      --description="Found while working on <current-id>" \
      --acceptance="- [ ] [Specific fix] | \`[command]\` | exit 0"
    ```
 
    **You MAY**:
    - Create new issues (discovered work)
-   - Add dependencies (found new blocker)
+   - Add dependencies (found new blocker) — use `--deps` on create or `bd dep add`
 
    **You CANNOT remove dependencies or modify structure** (requires PLANNING mode):
    - Remove dependencies
@@ -339,7 +341,7 @@ Long iterations degrade quality. After ~180K tokens, the system compresses your 
 **How to exit cleanly:**
 1. Ensure all changes are committed and pushed
 2. Update any in-progress issues with notes on current state
-3. Run `bd sync`
+3. Run `bd dolt push`
 4. Output a brief summary of what was accomplished
 5. Stop — the loop will start a fresh iteration with full context
 
@@ -354,12 +356,12 @@ Long iterations degrade quality. After ~180K tokens, the system compresses your 
 
 99999. Keep notes updated during work:
        ```bash
-       bd update <id> --notes "Learning: [insight discovered]"
+       bd note <id> "Learning: [insight discovered]"
        ```
 
 999999. If stuck for >3 attempts, add detailed notes and move to next ready task:
         ```bash
-        bd update <id> --notes "STUCK: [detailed explanation of blocker]"
+        bd note <id> "STUCK: [detailed explanation of blocker]"
         ```
         The loop will detect this and move on.
 

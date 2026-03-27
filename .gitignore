@@ -7,3 +7,10 @@ docs/research/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# direnv (contains project-scoped GH_TOKEN)
+.envrc
+.beads/metadata.json
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

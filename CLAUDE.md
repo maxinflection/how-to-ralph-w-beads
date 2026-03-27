@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |----------------|-------------------|
 | `IMPLEMENTATION_PLAN.md` | `bd ready` queue + dependency graph |
 | `specs/*.md` | Beads epics with child issues |
-| "Task" in markdown plan | Beads issue (task/feature/bug) |
+| "Task" in markdown plan | Beads issue (task/feature/bug/chore/decision) |
 | "Topic of Concern" | Beads epic |
 | Gap analysis output | `bd list --status open` |
 | "Most important task" | `bd ready --limit 1 --sort priority` |
@@ -121,8 +121,15 @@ how-to-ralph-w-beads/
 bd ready               # Find unblocked work
 bd ready --json        # JSON output for scripting
 bd list --status open  # All open issues
+bd query "status=open AND priority<=1"  # Powerful filtering
 bd show <id>           # Issue details
+bd note <id> "text"    # Append notes (shorthand)
+bd q "Quick task"      # Quick capture, outputs only ID
+bd count --status=open # Count without jq
+bd find-duplicates     # Detect near-duplicate issues
 bd stats               # Project health overview
+bd dolt push           # Push beads to Dolt remote
+bd dolt pull           # Pull beads from Dolt remote
 
 # Exit condition check (used by loop.sh)
 READY_COUNT=$(bd ready --json 2>/dev/null | jq 'length // 0')
@@ -162,10 +169,18 @@ This project uses **bd (beads)** for issue tracking. All work should be tracked 
 ### Creating Issues
 
 ```bash
-bd create --title="Issue title" --type=task|bug|feature|epic --priority=2
+bd create --title="Issue title" --type=task|bug|feature|epic|chore|decision --priority=2
 ```
 
 Priority levels: 0-4 or P0-P4 (0=critical, 2=medium, 4=backlog). Do NOT use "high"/"medium"/"low".
+
+**Useful create flags:**
+- `--deps="<id>"` — Wire dependencies inline (no separate `bd dep add` needed)
+- `--due="+2d"` or `--due="next monday"` — Set due date
+- `--defer="+1w"` — Defer until later (hidden from `bd ready` until then)
+- `--estimate=60` — Time estimate in minutes
+- `--dry-run` — Preview without creating
+- `--context="..."` — Additional context field (separate from description)
 
 ### Dependencies Between Issues
 
@@ -188,8 +203,7 @@ bd dep list <issue-id>
 **Example workflow:**
 ```bash
 bd create --title="Design API schema" --type=task        # Creates bd-001
-bd create --title="Implement API endpoints" --type=task  # Creates bd-002
-bd dep add bd-002 bd-001  # Implement depends on Design (Design blocks Implement)
+bd create --title="Implement API endpoints" --type=task --deps="bd-001"  # Depends on Design
 ```
 
 ### Epics and Child Issues
@@ -248,7 +262,7 @@ When using `/plan` or entering plan mode for implementation tasks, the output MU
 1. **Create an epic** for multi-issue work (3+ related tasks)
 2. **Each issue must include:**
    - Clear, actionable title
-   - Type (task, bug, feature)
+   - Type (task, bug, feature, chore, decision)
    - Priority (0-4)
    - Parent epic ID (if part of an epic)
    - Dependencies on other issues (if applicable)
@@ -289,7 +303,7 @@ bd create --title="<Task 1>" --type=task --priority=<N> --parent=<epic-id> \
   --acceptance="- <Criterion 1>
 - <Criterion 2>"
 
-# Add dependencies between tasks
+# Add dependencies between tasks (or use --deps on create)
 bd dep add <task-that-waits> <task-that-blocks>
 ```
 
@@ -335,9 +349,10 @@ Backend endpoint needed before frontend can be built.
 - Returns 200 with updated profile on success"
 # Assume task ID: bd-task1
 
-# Task 2: Frontend form (depends on API)
+# Task 2: Frontend form (depends on API — wired inline via --deps)
 bd create --title="Build profile edit form component" --type=task --priority=2 \
   --parent=bd-abc123 \
+  --deps="bd-task1" \
   --description="
 ## Context
 Frontend form for users to edit their profile.
@@ -357,10 +372,6 @@ Frontend form for users to edit their profile.
 - Loading state during submission
 - Error messages displayed on failure
 - Success feedback and redirect on completion"
-# Assume task ID: bd-task2
-
-# Set dependency: frontend depends on API
-bd dep add bd-task2 bd-task1
 ```
 
 For more workflow details: `bd prime`
