@@ -35,6 +35,12 @@
 
 set -euo pipefail
 
+# Parse --log flag early (before sourcing ralph-state.sh which reads RALPH_LOG)
+if [ "${1:-}" = "--log" ]; then
+    export RALPH_LOG=1
+    shift
+fi
+
 # Get script directory for sourcing libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -68,12 +74,8 @@ ensure_int() {
     fi
 }
 
-# Parse arguments
+# Parse remaining arguments
 # Support: ./loop.sh [--log] [plan|build] [max_iterations]
-if [ "${1:-}" = "--log" ]; then
-    export RALPH_LOG=1
-    shift
-fi
 
 if [ "${1:-}" = "plan" ]; then
     MODE="plan"
@@ -367,28 +369,43 @@ while true; do
     # timeout sends SIGTERM (graceful) first, SIGKILL after 30s grace period
     # We use a subshell + PIPESTATUS to capture claude's exit code (not tee's)
     # since tee may get SIGPIPE (141) when timeout kills claude
+    #
+    # When logging is enabled (RALPH_LOG=1):
+    #   - tee streams output to both the log file and temp file simultaneously
+    #   - no stdout (quiet terminal for backgrounded runs)
+    #   - temp file retained for quota detection
+    # When logging is disabled:
+    #   - tee streams to both stdout and temp file
     if [ "$ITER_TIMEOUT" -gt 0 ] 2>/dev/null; then
         set +o pipefail
-        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
-            timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
-            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
-            tee "$_ITER_OUTPUT_FILE"
+        if [ "$RALPH_LOG" = "1" ]; then
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+                timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
+                claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
+                tee "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE"
+        else
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+                timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
+                claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
+                tee "$_ITER_OUTPUT_FILE"
+        fi
         LAST_EXIT=${PIPESTATUS[1]}  # claude/timeout's exit code, not tee's
         set -o pipefail
     else
-        sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
-            claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
-            tee "$_ITER_OUTPUT_FILE" || LAST_EXIT=$?
+        if [ "$RALPH_LOG" = "1" ]; then
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+                claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
+                tee "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE" || LAST_EXIT=$?
+        else
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+                claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
+                tee "$_ITER_OUTPUT_FILE" || LAST_EXIT=$?
+        fi
     fi
 
     # Exit code 124 = timeout killed the process
     if [ "$LAST_EXIT" -eq 124 ]; then
         log_warn "Iteration timed out after ${ITER_TIMEOUT}s - will continue with fresh context"
-    fi
-
-    # Append to log file if logging enabled
-    if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
-        cat "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE"
     fi
 
     ITER_END=$(date +%s)
