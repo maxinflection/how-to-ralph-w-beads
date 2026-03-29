@@ -319,3 +319,47 @@ bd blocked
 
 # Manually triage before restarting
 ```
+
+## Inter-Iteration Judge
+
+The loop includes an LLM-as-a-judge that runs between iterations to catch problems the loop's mechanical checks miss. **Enabled by default.** Set `RALPH_JUDGE=0` to disable.
+
+### How It Works
+
+After each iteration completes, the loop:
+1. Checks whether the iteration was **productive** (had edits, writes, tests, or closures)
+2. Feeds iteration context to a cheap model (Haiku by default) with a judge prompt
+3. Acts on the verdict: `continue`, `exit`, `plan`, or `reopen:<issue-id>`
+
+### What It Catches
+
+| Problem | Detection | Verdict |
+|---------|-----------|---------|
+| Spinning (no productive work) | Shell counter tracks consecutive non-productive iterations | `exit` after 3+ |
+| Invalid closures | Judge compares acceptance criteria against actual verification evidence | `reopen:<id>` |
+| Agent stuck on hard problem | Repeated non-productive iterations on same issue | `plan` (switches to plan mode for 1 iteration) |
+| Fabricated output | Judge looks for hedging language and missing verification commands | `reopen:<id>` |
+
+### Memory Model
+
+The judge runs via `claude -p` (stateless per call). Cross-iteration memory uses two mechanisms:
+
+- **Shell counter** — `_JUDGE_CONSECUTIVE_NONPRODUCTIVE` resets to 0 on productive iterations, increments otherwise. Injected into judge context as a WARNING when >= 3.
+- **JSONL verdict log** — `judge-history.jsonl` in the state directory. Each verdict is appended. The next judge call receives the last 5 entries as context for trend detection.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RALPH_JUDGE` | `1` (on) | Set to `0` to disable |
+| `RALPH_JUDGE_MODEL` | `haiku` | Model for judge calls |
+| `RALPH_JUDGE_BUDGET` | `0.05` | Max USD per judge call |
+| `RALPH_JUDGE_TIMEOUT` | `30` | Seconds before judge call is killed |
+
+### Cost
+
+At Haiku rates (~$0.01/iteration), the judge adds <$1.50 to a 150-iteration run. Break-even is one prevented spinning iteration (~$2 saved).
+
+### Graceful Degradation
+
+If the judge call fails or times out, the verdict defaults to `continue` — the loop is never blocked by a judge failure. Judge errors are logged but do not affect loop execution.

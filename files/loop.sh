@@ -18,6 +18,8 @@
 #   RALPH_SCOPE=<epic-id>  Filter to children of a specific epic
 #   PROMPT_DIR=<path>      Override prompt files directory (default: same dir as loop.sh)
 #   ITER_TIMEOUT=<secs>    Max seconds per iteration (default: 2700=45min). 0 = no limit.
+#   RALPH_JUDGE=0          Disable inter-iteration LLM judge (on by default)
+#   RALPH_JUDGE_MODEL=haiku Judge model (default: haiku)
 #
 # Exit conditions:
 #   1. bd ready returns empty (no unblocked work) - BUILD mode only
@@ -46,9 +48,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source state management library
 source "${SCRIPT_DIR}/ralph-state.sh"
+source "${SCRIPT_DIR}/ralph-judge.sh"
 
 # Initialize external state directory
 init_ralph_state
+init_judge
 
 # Cleanup temp files on exit
 cleanup() { rm -f "${_ITER_OUTPUT_FILE:-}" 2>/dev/null || true; }
@@ -123,6 +127,11 @@ echo "Branch: $CURRENT_BRANCH"
 [ -n "$RALPH_SCOPE" ] && echo "Scope:  $RALPH_SCOPE (epic-scoped)"
 [ "$MAX_ITERATIONS" -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 [ "$ITER_TIMEOUT" -gt 0 ] 2>/dev/null && echo "Timeout: ${ITER_TIMEOUT}s ($((ITER_TIMEOUT / 60))min) per iteration"
+if [ "${RALPH_JUDGE:-1}" = "0" ]; then
+    echo "Judge:  disabled"
+else
+    echo "Judge:  enabled (model: ${RALPH_JUDGE_MODEL:-haiku})"
+fi
 get_ralph_state_info
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -290,6 +299,13 @@ touch "$ATTEMPT_FILE"
 
 # Main loop
 while true; do
+    # Auto-revert from judge-triggered plan mode
+    if [ "${_JUDGE_PLAN_OVERRIDE:-0}" = "1" ]; then
+        MODE="build"
+        PROMPT_FILE="${PROMPT_DIR}/PROMPT_build.md"
+        _JUDGE_PLAN_OVERRIDE=0
+    fi
+
     # Exit condition 1: Max iterations reached
     if [ "$MAX_ITERATIONS" -gt 0 ] && [ "$ITERATION" -ge "$MAX_ITERATIONS" ]; then
         log_success "Reached max iterations: $MAX_ITERATIONS"
@@ -414,6 +430,29 @@ while true; do
     # Log iteration end if logging enabled
     if [ "$RALPH_LOG" = "1" ] && [ -n "$_RALPH_LOG_FILE" ]; then
         log_event "iteration_end" "{\"iteration\":$ITERATION,\"exit_code\":$LAST_EXIT,\"duration_seconds\":$ITER_DURATION}"
+    fi
+
+    # Judge evaluation (skip on timeout — has its own handler)
+    if [ "${RALPH_JUDGE:-1}" != "0" ] && [ "$LAST_EXIT" -ne 124 ]; then
+        JUDGE_VERDICT=$(run_judge "$_ITER_OUTPUT_FILE")
+        case "$JUDGE_VERDICT" in
+            exit)
+                log_warn "Judge: EXIT — ${_JUDGE_LAST_REASON:-}"
+                rm -f "$_ITER_OUTPUT_FILE" 2>/dev/null || true
+                break ;;
+            plan)
+                log_warn "Judge: PLAN — ${_JUDGE_LAST_REASON:-}"
+                MODE="plan"
+                PROMPT_FILE="${PROMPT_DIR}/PROMPT_plan.md"
+                _JUDGE_PLAN_OVERRIDE=1
+                ;;
+            reopen:*)
+                log_warn "Judge: REOPEN ${JUDGE_VERDICT#reopen:} — ${_JUDGE_LAST_REASON:-}"
+                bd update "${JUDGE_VERDICT#reopen:}" --status open \
+                    --notes "Reopened by judge: ${_JUDGE_LAST_REASON:-criteria not verified}" 2>/dev/null || true
+                ;;
+            *) ;; # continue (default)
+        esac
     fi
 
     # Check for quota exhaustion before normal exit handling

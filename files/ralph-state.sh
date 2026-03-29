@@ -86,6 +86,12 @@ get_log_file() {
     echo "${state_dir}/logs/${timestamp}.log"
 }
 
+# Get path to judge history file
+get_judge_history_file() {
+    local state_dir="${1:-$_RALPH_PROJECT_STATE_DIR}"
+    echo "${state_dir}/judge-history.jsonl"
+}
+
 # Clean old log files, keeping the most recent N
 clean_old_logs() {
     local state_dir="${1:-$_RALPH_PROJECT_STATE_DIR}"
