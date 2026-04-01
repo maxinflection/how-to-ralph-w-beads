@@ -24,12 +24,14 @@ REASON: <one sentence>
 - Issues were closed with evidence (test commands run, output verified)
 - Agent made incremental progress (code written, tests passing, commits made)
 - Agent claimed a new issue and started working
+- Remaining ready work is > 0 (even if agent claims to be done)
 
 ### EXIT when:
 - 3+ consecutive non-productive iterations (check the "Consecutive non-productive" counter)
 - Agent reported "no automatable work available" or similar
 - Only epics or manual-labeled tasks remain in the ready queue
 - Agent explicitly said it has completed all available work
+- **NEVER** exit when "Remaining Ready Work" is > 0 — the loop's own exit-on-empty check is authoritative, but if the agent self-terminated early, remaining work means the agent was wrong
 
 ### PLAN when:
 - 2+ consecutive non-productive iterations on the SAME issue (agent is stuck)

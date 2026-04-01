@@ -112,6 +112,9 @@ $(_judge_get_issue_ac "${current_issue}")
 ## Closures This Iteration
 $(_judge_extract_closures "$output_file" | sed 's/^/- /' || echo "None")
 
+## Remaining Ready Work
+$(eval "$(get_bd_ready_cmd)" 2>/dev/null | jq 'length // 0') issues still ready after this iteration
+
 ## Productivity
 Consecutive non-productive iterations: ${_JUDGE_CONSECUTIVE_NONPRODUCTIVE}
 $([ "$_JUDGE_CONSECUTIVE_NONPRODUCTIVE" -ge 3 ] && echo "WARNING: ${_JUDGE_CONSECUTIVE_NONPRODUCTIVE} consecutive non-productive iterations — consider EXIT verdict")

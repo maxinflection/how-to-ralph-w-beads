@@ -41,6 +41,19 @@ If there are no automatable tasks, output a brief status summary and **exit clea
 
 The loop will handle retrying on the next cycle or after a planning session unblocks work.
 
+### Label-Scoped Loop: Do NOT Self-Terminate
+
+<!-- Only applies when RALPH_LABEL is set (non-empty) above -->
+When RALPH_LABEL is set (see top of file), your scope spans ALL issues
+with that label — they may belong to different epics. Do NOT exit or
+stop when:
+- You finish all children of one epic but labeled issues in another epic are ready
+- The next ready issue is in a "different subsystem" — the label IS the scope boundary
+- An epic auto-closes — check `bd ready --label=${RALPH_LABEL}` before concluding
+
+**Your exit condition is: `bd ready --label=${RALPH_LABEL} --json` returns `[]`.**
+Nothing else. If it returns issues, pick the next one and keep working.
+
 **0b. Run `bd show <id>`** to read full context, acceptance criteria, and dependencies.
 
 ### Minimize Re-fetching (Efficiency)
