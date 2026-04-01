@@ -16,6 +16,8 @@
 #   RALPH_LOG=1            Enable output logging to external state directory
 #   RALPH_STATE_DIR=<path> Override state directory (default: ~/.local/state/ralph)
 #   RALPH_SCOPE=<epic-id>  Filter to children of a specific epic
+#   RALPH_LABEL=<label>    Filter to issues with this label (AND with other filters)
+#   RALPH_LABEL_ANY=<l,l>  Filter to issues with any of these labels (OR)
 #   PROMPT_DIR=<path>      Override prompt files directory (default: same dir as loop.sh)
 #   ITER_TIMEOUT=<secs>    Max seconds per iteration (default: 2700=45min). 0 = no limit.
 #   RALPH_JUDGE=0          Disable inter-iteration LLM judge (on by default)
@@ -62,7 +64,9 @@ trap cleanup EXIT
 ATTEMPT_FILE=$(get_attempts_file)
 MAX_STUCK_ATTEMPTS=3
 PROMPT_DIR="${PROMPT_DIR:-$SCRIPT_DIR}"  # Prompts live alongside this script
-RALPH_SCOPE="${RALPH_SCOPE:-}"  # Optional: filter to epic children
+RALPH_SCOPE="${RALPH_SCOPE:-}"          # Optional: filter to epic children
+RALPH_LABEL="${RALPH_LABEL:-}"          # Optional: filter by label (AND)
+RALPH_LABEL_ANY="${RALPH_LABEL_ANY:-}"  # Optional: filter by any label (OR)
 CCUSAGE_CMD="${CCUSAGE_CMD:-bunx ccusage}"  # Override with direct path if needed
 ITER_TIMEOUT="${ITER_TIMEOUT:-2700}"  # Max seconds per iteration (default: 45min). 0 = no limit.
 _ITER_OUTPUT_FILE=""
@@ -124,7 +128,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Mode:   $MODE"
 echo "Prompt: $PROMPT_FILE"
 echo "Branch: $CURRENT_BRANCH"
-[ -n "$RALPH_SCOPE" ] && echo "Scope:  $RALPH_SCOPE (epic-scoped)"
+[ -n "$RALPH_SCOPE" ]     && echo "Scope:  $RALPH_SCOPE (epic-scoped)"
+[ -n "$RALPH_LABEL" ]     && echo "Label:  $RALPH_LABEL (label-filtered)"
+[ -n "$RALPH_LABEL_ANY" ] && echo "Labels: $RALPH_LABEL_ANY (any-of)"
 [ "$MAX_ITERATIONS" -gt 0 ] && echo "Max:    $MAX_ITERATIONS iterations"
 [ "$ITER_TIMEOUT" -gt 0 ] 2>/dev/null && echo "Timeout: ${ITER_TIMEOUT}s ($((ITER_TIMEOUT / 60))min) per iteration"
 if [ "${RALPH_JUDGE:-1}" = "0" ]; then
@@ -141,13 +147,22 @@ if [ ! -f "$PROMPT_FILE" ]; then
     exit 1
 fi
 
-# Build bd ready command with optional scope filter
+# Build bd ready command with optional scope/label filters
 get_bd_ready_cmd() {
-    if [ -n "$RALPH_SCOPE" ]; then
-        echo "bd ready --parent=${RALPH_SCOPE} --json"
-    else
-        echo "bd ready --json"
-    fi
+    local cmd="bd ready"
+    [ -n "$RALPH_SCOPE" ]     && cmd="$cmd --parent=${RALPH_SCOPE}"
+    [ -n "$RALPH_LABEL" ]     && cmd="$cmd --label=${RALPH_LABEL}"
+    [ -n "$RALPH_LABEL_ANY" ] && cmd="$cmd --label-any=${RALPH_LABEL_ANY}"
+    echo "$cmd --json"
+}
+
+# Build bd ready command for display (no --json)
+get_bd_ready_display_cmd() {
+    local cmd="bd ready"
+    [ -n "$RALPH_SCOPE" ]     && cmd="$cmd --parent=${RALPH_SCOPE}"
+    [ -n "$RALPH_LABEL" ]     && cmd="$cmd --label=${RALPH_LABEL}"
+    [ -n "$RALPH_LABEL_ANY" ] && cmd="$cmd --label-any=${RALPH_LABEL_ANY}"
+    echo "$cmd"
 }
 
 # Function to get current ready issue ID
@@ -354,11 +369,7 @@ while true; do
     # Show current state
     if [ "$MODE" = "build" ]; then
         log_info "Ready queue:"
-        if [ -n "$RALPH_SCOPE" ]; then
-            bd ready --parent="$RALPH_SCOPE" 2>/dev/null | head -5 || true
-        else
-            bd ready 2>/dev/null | head -5 || true
-        fi
+        eval "$(get_bd_ready_display_cmd)" 2>/dev/null | head -5 || true
         echo ""
     fi
 
@@ -395,12 +406,12 @@ while true; do
     if [ "$ITER_TIMEOUT" -gt 0 ] 2>/dev/null; then
         set +o pipefail
         if [ "$RALPH_LOG" = "1" ]; then
-            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g; s/\${RALPH_LABEL}/${RALPH_LABEL:-}/g; s/\${RALPH_LABEL_ANY}/${RALPH_LABEL_ANY:-}/g" "$PROMPT_FILE" | \
                 timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
                 claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
                 tee "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE"
         else
-            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g; s/\${RALPH_LABEL}/${RALPH_LABEL:-}/g; s/\${RALPH_LABEL_ANY}/${RALPH_LABEL_ANY:-}/g" "$PROMPT_FILE" | \
                 timeout --signal=TERM --kill-after=30 "${ITER_TIMEOUT}" \
                 claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
                 tee "$_ITER_OUTPUT_FILE"
@@ -409,11 +420,11 @@ while true; do
         set -o pipefail
     else
         if [ "$RALPH_LOG" = "1" ]; then
-            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g; s/\${RALPH_LABEL}/${RALPH_LABEL:-}/g; s/\${RALPH_LABEL_ANY}/${RALPH_LABEL_ANY:-}/g" "$PROMPT_FILE" | \
                 claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
                 tee "$_ITER_OUTPUT_FILE" >> "$_RALPH_LOG_FILE" || LAST_EXIT=$?
         else
-            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g" "$PROMPT_FILE" | \
+            sed "s/\${RALPH_SCOPE}/${RALPH_SCOPE:-}/g; s/\${RALPH_LABEL}/${RALPH_LABEL:-}/g; s/\${RALPH_LABEL_ANY}/${RALPH_LABEL_ANY:-}/g" "$PROMPT_FILE" | \
                 claude -p --dangerously-skip-permissions --output-format=stream-json --model opus --fallback-model sonnet --verbose 2>&1 | \
                 tee "$_ITER_OUTPUT_FILE" || LAST_EXIT=$?
         fi

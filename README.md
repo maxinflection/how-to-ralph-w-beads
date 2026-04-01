@@ -177,7 +177,9 @@ Override the location with `RALPH_STATE_DIR`:
 RALPH_STATE_DIR=/tmp/ralph ./loop.sh build
 ```
 
-### Scoped Loops (RALPH_SCOPE)
+### Scoped Loops
+
+#### By epic (RALPH_SCOPE)
 
 Run loops scoped to a specific epic, useful for feature branches or worktrees:
 
@@ -210,6 +212,43 @@ RALPH_SCOPE=htrwb-xyz ./loop.sh build
 ```
 
 This enables parallel development: different worktrees work on different epics simultaneously without interference.
+
+#### By label (RALPH_LABEL / RALPH_LABEL_ANY)
+
+Tag issues with a label and run the loop filtered to that label. This is the most flexible scoping mechanism — labels can span epics, target individual issues, or define ad-hoc work sets:
+
+```bash
+# Label issues for the current sprint
+bd label add bd-001 sprint-4
+bd label add bd-005 sprint-4
+
+# Run loop on labeled issues only
+RALPH_LABEL=sprint-4 ./loop.sh build
+```
+
+Use `RALPH_LABEL_ANY` for OR-style matching (issues with *any* of the listed labels):
+
+```bash
+# Work on issues tagged "urgent" OR "hotfix"
+RALPH_LABEL_ANY=urgent,hotfix ./loop.sh build
+```
+
+When label filtering is active:
+- `bd ready` only returns issues with matching labels
+- Prompts instruct the agent to add the label to newly created issues so they stay in scope
+- New issues created during the loop inherit the label automatically
+
+#### Combining filters
+
+All scope filters compose with AND semantics:
+
+```bash
+# Children of epic AND labeled sprint-4
+RALPH_SCOPE=bd-abc RALPH_LABEL=sprint-4 ./loop.sh build
+
+# Scoped to epic with OR-label filter
+RALPH_SCOPE=bd-abc RALPH_LABEL_ANY=frontend,ui ./loop.sh build
+```
 
 ## Comparison with Original Ralph
 

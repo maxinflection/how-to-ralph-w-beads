@@ -117,6 +117,12 @@ how-to-ralph-w-beads/
 ./loop.sh plan         # Plan mode
 ./loop.sh plan 5       # Plan mode, max 5 iterations
 
+# Scoped loops (env vars, all composable with AND semantics)
+RALPH_SCOPE=bd-abc ./loop.sh build           # Filter to children of epic
+RALPH_LABEL=sprint-4 ./loop.sh build         # Filter to labeled issues
+RALPH_LABEL_ANY=urgent,hotfix ./loop.sh build # Filter to issues with any label
+RALPH_SCOPE=bd-abc RALPH_LABEL=sprint-4 ./loop.sh build  # Combined
+
 # Beads commands
 bd ready               # Find unblocked work
 bd ready --json        # JSON output for scripting

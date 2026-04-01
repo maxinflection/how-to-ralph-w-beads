@@ -1,14 +1,21 @@
 # PLANNING MODE - Triage Stuck Work + Generate New Issues
 
 <!-- RALPH_SCOPE: ${RALPH_SCOPE} -->
+<!-- RALPH_LABEL: ${RALPH_LABEL} -->
+<!-- RALPH_LABEL_ANY: ${RALPH_LABEL_ANY} -->
 
 ## Phase 0: Orient
 
 **0a. Understand current work state:**
-- If RALPH_SCOPE is set above (non-empty): Run `bd ready --parent=${RALPH_SCOPE}` and `bd list --status open --parent=${RALPH_SCOPE}`
-- Otherwise: Run `bd ready` and `bd list --status open`
 
-This shows current work (within scope if scoped).
+Build your `bd ready` and `bd list` commands by combining any active filters from above:
+- If RALPH_SCOPE is set (non-empty): add `--parent=${RALPH_SCOPE}`
+- If RALPH_LABEL is set (non-empty): add `--label=${RALPH_LABEL}`
+- If RALPH_LABEL_ANY is set (non-empty): add `--label-any=${RALPH_LABEL_ANY}`
+- If none are set: just `bd ready` and `bd list --status open`
+- Example: `bd ready --label=sprint-4` and `bd list --status open --label=sprint-4`
+
+This shows current work (within scope if filtered).
 
 0b. **Determine requirements source** (specs are optional):
     - If `specs/*` exists and has files → Study specs as the source of truth
@@ -76,6 +83,7 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    b. **If blocker can now be modeled as beads work**:
       ```bash
       # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
+      # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
       bd create --title="Prerequisite: [what's needed]" --type=task --priority=1 \
         --parent=<RALPH_SCOPE-if-set> \
         --description="## Context\nRequired to unblock <blocked-id>" \
@@ -107,6 +115,7 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    **For Epics** (large bodies of work with multiple tasks):
    ```bash
    # If RALPH_SCOPE is set, new epics should be children of that scope
+   # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
    # Otherwise, create top-level epics
    bd create --title="Epic: [Topic]" --type=epic --priority=1 \
      --parent=<RALPH_SCOPE-if-set> \
@@ -126,6 +135,7 @@ If you find yourself reaching for TodoWrite, **STOP** and use the equivalent `bd
    **For Tasks** (implementable units of work):
    ```bash
    # If RALPH_SCOPE is set, use --parent=${RALPH_SCOPE} (or child epic)
+   # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
    # Use --deps to wire dependencies inline (no separate bd dep add needed)
    # Use --dry-run to preview before creating
    bd create --title="Implement [specific thing]" --type=task --priority=2 \

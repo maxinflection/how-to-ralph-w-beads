@@ -1,14 +1,21 @@
 # BUILDING MODE - Implement from Beads Queue
 
 <!-- RALPH_SCOPE: ${RALPH_SCOPE} -->
+<!-- RALPH_LABEL: ${RALPH_LABEL} -->
+<!-- RALPH_LABEL_ANY: ${RALPH_LABEL_ANY} -->
 
 ## Phase 0: Orient
 
 **0a. Get ready work:**
-- If RALPH_SCOPE is set above (non-empty): Run `bd ready --parent=${RALPH_SCOPE} --json | jq '.[0]'`
-- Otherwise: Run `bd ready --json | jq '.[0]'`
 
-This gets the highest-priority unblocked task (within scope if scoped).
+Build your `bd ready` command by combining any active filters from above:
+- If RALPH_SCOPE is set (non-empty): add `--parent=${RALPH_SCOPE}`
+- If RALPH_LABEL is set (non-empty): add `--label=${RALPH_LABEL}`
+- If RALPH_LABEL_ANY is set (non-empty): add `--label-any=${RALPH_LABEL_ANY}`
+- If none are set: just `bd ready --json | jq '.[0]'`
+- Example with all filters: `bd ready --parent=bd-abc --label=sprint-4 --json | jq '.[0]'`
+
+This gets the highest-priority unblocked task (within scope if filtered).
 
 ### Early Exit: No Automatable Work
 
@@ -257,6 +264,7 @@ Example scenarios:
    d. **If it fails requiring substantial work**: Create a blocking issue:
       ```bash
       # If RALPH_SCOPE is set, use --parent=${RALPH_SCOPE}; otherwise use --parent=<epic-if-applicable>
+      # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
       bd create --title="Fix: [specific failure]" --type=bug --priority=1 \
         --parent=<epic-or-RALPH_SCOPE> \
         --description="
@@ -286,6 +294,7 @@ Example scenarios:
 4. **If you discover issues during implementation**:
    ```bash
    # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
+   # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
    # Use --deps to wire the dependency inline (no separate bd dep add needed)
    bd create --title="Discovered: [issue]" --type=bug --priority=2 \
      --parent=<RALPH_SCOPE-if-set> \
@@ -373,6 +382,7 @@ Long iterations degrade quality. After ~180K tokens, the system compresses your 
 999999999. For bugs noticed but unrelated to current work, file them:
            ```bash
            # If RALPH_SCOPE is set (see top of file), include --parent=${RALPH_SCOPE}
+           # If RALPH_LABEL is set, add --label=${RALPH_LABEL} so the new issue stays in scope
            bd create --title="Bug: [description]" --type=bug --priority=2 \
              --parent=<RALPH_SCOPE-if-set> \
              --acceptance="- [ ] [Fix verification] | \`[command]\` | exit 0"
