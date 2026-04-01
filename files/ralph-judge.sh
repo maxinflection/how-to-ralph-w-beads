@@ -189,6 +189,7 @@ run_judge() {
             --model "$RALPH_JUDGE_MODEL" \
             --system-prompt "$(cat "$judge_prompt_file")" \
             --max-budget-usd "$RALPH_JUDGE_BUDGET" \
+            --no-plugins \
             --output-format json 2>/dev/null |
         jq -r '.result // empty' 2>/dev/null) || true
 
